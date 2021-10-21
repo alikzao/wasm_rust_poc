@@ -1,9 +1,9 @@
 extern crate wasm_bindgen;
-use crate::shader::Shader;
-use crate::shader::ShaderKind;
-use crate::State;
+// use crate::shader::Shader;
+// use crate::shader::ShaderKind;
+// use crate::State;
 
-use js_sys::WebAssembly;
+// use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
 
 use std::rc::Rc;
@@ -12,7 +12,7 @@ use web_sys::*;
 use std::cell::RefCell;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlImageElement;
-use web_sys::WebGlRenderingContext;
+// use web_sys::WebGlRenderingContext;
 use web_sys::WebGlRenderingContext as GL;
 
 
@@ -68,25 +68,26 @@ fn main(){
     }) as Box<dyn Fn()>);
     let image = image.borrow_mut();
     image.set_onload(Some(onload.as_ref().unchecked_ref()));
-    image.set_src(src);
+    image.set_src("./atlas.png.png");
     onload.forget();
 }
 
 fn render(image: HtmlImageElement){
     let gl = get_webgl_context_by_id("canvas");
-    let program = gl.create_program().ok_or_else(|| "Unable to create shader program".to_string())?;
-    gl.attach_shader(program, get_shader(gl, "vertex-shader-2d", GL::VERTEX_SHADER));
-    gl.attach_shader(program, get_shader(gl, "fragment-shader-2d", GL::FRAGMENT_SHADER));
-    gl.link_program(program);
-    let positionLocation = gl.get_attrib_location(program, "a_position");
-    let texcoordLocation = gl.get_attrib_location(program, "a_texCoord");
+    let program = gl.create_program();
+    gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER,  VERTEX_SHADER)); //GL::VERTEX_SHADER,
+    gl.attach_shader(&program, &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER)); //GL::FRAGMENT_SHADER
+    gl.link_program(&program);
+    let positionLocation = gl.get_attrib_location(&program, "a_position");
+    let texcoordLocation = gl.get_attrib_location(&program, "a_texCoord");
 
-    let positionBuffer = gl.create_buffer();
-    gl.bind_buffer(GL::ARRAY_BUFFER, positionBuffer);
-    setRectangle(gl, 0, 0, 500, 500);
+    let positionBuffer = gl.create_buffer().unwrap();
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&positionBuffer));
 
-    let texcoordBuffer = gl.create_buffer();
-    gl.bind_buffer(GL::ARRAY_BUFFER, texcoordBuffer);
+    setRectangle(&gl, 0, 0, 500, 500); // !!!
+
+    let texcoordBuffer = gl.create_buffer().unwrap();
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoordBuffer));
     let vertices = [
         0.0,  0.0,
         1.0,  0.0,
@@ -99,34 +100,37 @@ fn render(image: HtmlImageElement){
     gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, vert_array, GL::STATIC_DRAW);
     // ----
     let texture = gl.create_texture();
-    gl.bind_texture(GL::TEXTURE_2D, texture);
-    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE);
-    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE);
-    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST);
-    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST);
-    gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, image.borrow()).expect("Texture image 2d");
+    gl.bind_texture(GL::TEXTURE_2D, texture.as_ref());
+    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32);
+    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32);
+    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
+    gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
+    gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, &image).expect("Texture image 2d");
+    // gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, image.borrow());
     // gl.tex_Image2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    let resolutionLocation = gl.get_uniform_location(program, "u_resolution");
+    let resolutionLocation = gl.get_uniform_location(program.as_ref(), "u_resolution");
     // resizeCanvas(gl.canvas);
     gl.viewport(0, 0, 500, 500);
-    gl.clearColor(0, 0, 0, 0);
+    gl.clear_color(0.0, 0.0, 0.0, 0.0);
     gl.clear(GL::COLOR_BUFFER_BIT);
     // lookup uniforms
-    gl.use_program(program);
-    gl.enable_vertex_attrib_array(positionLocation);
+    gl.use_program(program.as_ref());
+    gl.enable_vertex_attrib_array(positionLocation as u32);
     // Bind the position buffer.
-    gl.bind_buffer(GL::ARRAY_BUFFER, positionBuffer);
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&positionBuffer));
     // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-    gl.vertex_attrib_pointer(positionLocation, 2, GL::FLOAT, false, 0, 0);
+    // gl.vertex_attrib_pointer(positionLocation, 2, GL::FLOAT, false, 0, 0);
+    gl.vertex_attrib_pointer_with_i32(positionLocation as u32, 2, GL::FLOAT, false, 0, 0);
+    // gl.vertex_attrib_pointer_with_i32(attrib,         size,        GL::FLOAT, false, 0, 0);
     // Turn on the texcoord attribute
-    gl.enable_vertex_attrib_array(texcoordLocation);
+    gl.enable_vertex_attrib_array(texcoordLocation as u32);
     // bind the texcoord buffer.
-    gl.bind_buffer(GL::ARRAY_BUFFER, texcoordBuffer);
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoordBuffer));
     // Tell the texcoord attribute how to get data out of texcoordBuffer (ARRAY_BUFFER)
     // gl.vertex_attrib_pointer(texcoordLocation, 2, GL::FLOAT, false, 0, 0);
-    gl.vertex_attrib_pointer_with_i32(texcoordLocation, 2, GL::FLOAT, false, 0, 0);
+    gl.vertex_attrib_pointer_with_i32(texcoordLocation as u32, 2, GL::FLOAT, false, 0, 0);
     // set the resolution
-    gl.uniform2f(resolutionLocation, 1000.0, 500.0);
+    gl.uniform2f(resolutionLocation.as_ref(), 1000.0, 500.0);
     // Draw the rectangle.
     gl.draw_arrays(GL::TRIANGLES, 0, 6);
 }
