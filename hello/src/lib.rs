@@ -67,18 +67,20 @@ fn setRectangle(gl: &GL, x:f32, y:f32, width:f32, height:f32) {
 }
 
 fn main(){
-    let image = Rc::new(RefCell::new(HtmlImageElement::new().unwrap()));
+    // let image = Rc::new(RefCell::new(HtmlImageElement::new().unwrap()));
+    let image = HtmlImageElement::new().unwrap();
     // let image_clone = Rc::clone(&image);
     let onload = Closure::wrap(Box::new(move || {
-        render((&*image).clone());
+        // render((&*image).clone());
+        render(&image);
     }) as Box<dyn Fn()>);
-    let image = image.borrow_mut();
+    // image = image.borrow_mut();
     image.set_onload(Some(onload.as_ref().unchecked_ref()));
     image.set_src("./atlas.png.png");
     onload.forget();
 }
 
-fn render(image: HtmlImageElement){
+fn render(image: &HtmlImageElement){
     let gl = get_webgl_context_by_id("canvas");
     let program = gl.create_program().unwrap();
     gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER,  VERTEX_SHADER)); //GL::VERTEX_SHADER,
