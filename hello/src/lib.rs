@@ -46,9 +46,14 @@ fn set_rectangle(gl: &GL, x: f32, y: f32, width: f32, height: f32) {
     let x2 = x + width;
     let y1 = y;
     let y2 = y + height;
+    #[rustfmt::skip]
     let vertices = [
-        x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2,
-        y2,
+        x1, y1, 
+        x2, y1, 
+        x1, y2, 
+        x1, y2, 
+        x2, y1, 
+        x2, y2,
         // x1 as f32, y1 as f32,
         // x2 as f32, y1 as f32,
         // x1 as f32, y2 as f32,
@@ -68,7 +73,7 @@ fn main() {
             render(&image.borrow());
         }
     }) as Box<dyn Fn()>);
-    // image = image.borrow_mut();
+    let image = image.borrow_mut();
     image.set_onload(Some(onload.as_ref().unchecked_ref()));
     image.set_src("./atlas.png.png");
     onload.forget();
