@@ -15,14 +15,11 @@ use web_sys::HtmlImageElement;
 // use web_sys::WebGlRenderingContext;
 use web_sys::WebGlRenderingContext as GL;
 
-
-
 pub static CANVAS_WIDTH: i32 = 512;
 pub static CANVAS_HEIGHT: i32 = 512;
 
-
 #[wasm_bindgen]
-extern {
+extern "C" {
     pub fn alert(s: &str);
 }
 
@@ -43,18 +40,15 @@ fn get_shader(gl: &GL, shader_type: u32, source: &str) -> WebGlShader {
     gl.compile_shader(&shader);
     shader
 }
-fn setRectangle(gl: &GL, x:f32, y:f32, width:f32, height:f32) {
+
+fn set_rectangle(gl: &GL, x: f32, y: f32, width: f32, height: f32) {
     let x1 = x;
     let x2 = x + width;
     let y1 = y;
     let y2 = y + height;
     let vertices = [
-        x1, y1,
-        x2, y1,
-        x1, y2,
-        x1, y2,
-        x2, y1,
-        x2, y2,
+        x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2,
+        y2,
         // x1 as f32, y1 as f32,
         // x2 as f32, y1 as f32,
         // x1 as f32, y2 as f32,
@@ -62,17 +56,17 @@ fn setRectangle(gl: &GL, x:f32, y:f32, width:f32, height:f32) {
         // x2 as f32, y1 as f32,
         // x2 as f32, y2 as f32,
     ];
-    let data_array = js_sys::Float32Array::view(&vertices);
+    let data_array = unsafe { js_sys::Float32Array::view(&vertices) };
     gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
 }
 
-fn main(){
-    // let image = Rc::new(RefCell::new(HtmlImageElement::new().unwrap()));
-    let image = HtmlImageElement::new().unwrap();
-    // let image_clone = Rc::clone(&image);
-    let onload = Closure::wrap(Box::new(move || {
-        // render((&*image).clone());
-        render(&image);
+fn main() {
+    let image = Rc::new(RefCell::new(HtmlImageElement::new().unwrap()));
+    let onload = Closure::wrap(Box::new({
+        let image = image.clone();
+        move || {
+            render(&image.borrow());
+        }
     }) as Box<dyn Fn()>);
     // image = image.borrow_mut();
     image.set_onload(Some(onload.as_ref().unchecked_ref()));
@@ -80,23 +74,27 @@ fn main(){
     onload.forget();
 }
 
-fn render(image: &HtmlImageElement){
+fn render(image: &HtmlImageElement) {
     let gl = get_webgl_context_by_id("canvas");
     let program = gl.create_program().unwrap();
-    gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER,  VERTEX_SHADER)); //GL::VERTEX_SHADER,
-    gl.attach_shader(&program, &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER)); //GL::FRAGMENT_SHADER
+    gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER, VERTEX_SHADER)); //GL::VERTEX_SHADER,
+    gl.attach_shader(
+        &program,
+        &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER),
+    ); //GL::FRAGMENT_SHADER
     gl.link_program(&program);
-    let positionLocation = gl.get_attrib_location(&program, "a_position");
-    let texcoordLocation = gl.get_attrib_location(&program, "a_texCoord");
+    let position_location = gl.get_attrib_location(&program, "a_position");
+    let texcoord_location = gl.get_attrib_location(&program, "a_texCoord");
 
-    let positionBuffer = gl.create_buffer().unwrap();
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&positionBuffer));
+    let position_buffer = gl.create_buffer().unwrap();
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&position_buffer));
 
-    setRectangle(&gl, 0.0, 0.0, 500.0, 500.0); // !!!
+    set_rectangle(&gl, 0.0, 0.0, 500.0, 500.0); // !!!
 
-    let texcoordBuffer = gl.create_buffer().unwrap();
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoordBuffer));
-    let vertices = [
+    let texcoord_buffer = gl.create_buffer().unwrap();
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoord_buffer));
+    #[rustfmt::skip]
+    let vertices = &[
         0.0,  0.0,
         1.0,  0.0,
         0.0,  1.0,
@@ -104,7 +102,7 @@ fn render(image: &HtmlImageElement){
         1.0,  0.0,
         1.0,  1.0,
     ];
-    let data_array = js_sys::Float32Array::view(&vertices);
+    let data_array = unsafe { js_sys::Float32Array::view(vertices) };
     gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &data_array, GL::STATIC_DRAW);
     // ----
     let texture = gl.create_texture();
@@ -113,32 +111,40 @@ fn render(image: &HtmlImageElement){
     gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32);
     gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
     gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
-    gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, &image).expect("Texture image 2d");
+    gl.tex_image_2d_with_u32_and_u32_and_image(
+        GL::TEXTURE_2D,
+        0,
+        GL::RGBA as i32,
+        GL::RGBA,
+        GL::UNSIGNED_BYTE,
+        &image,
+    )
+    .expect("Texture image 2d");
     // gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, image.borrow());
     // gl.tex_Image2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    let resolutionLocation = gl.get_uniform_location(&program, "u_resolution");
+    let resolution_location = gl.get_uniform_location(&program, "u_resolution");
     // resizeCanvas(gl.canvas);
     gl.viewport(0, 0, 500, 500);
     gl.clear_color(0.0, 0.0, 0.0, 0.0);
     gl.clear(GL::COLOR_BUFFER_BIT);
     // lookup uniforms
-    gl.use_program(&program);
-    gl.enable_vertex_attrib_array(positionLocation as u32);
+    gl.use_program(Some(&program));
+    gl.enable_vertex_attrib_array(position_location as u32);
     // Bind the position buffer.
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&positionBuffer));
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&position_buffer));
     // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
     // gl.vertex_attrib_pointer(positionLocation, 2, GL::FLOAT, false, 0, 0);
-    gl.vertex_attrib_pointer_with_i32(positionLocation as u32, 2, GL::FLOAT, false, 0, 0);
+    gl.vertex_attrib_pointer_with_i32(position_location as u32, 2, GL::FLOAT, false, 0, 0);
     // gl.vertex_attrib_pointer_with_i32(attrib,         size,        GL::FLOAT, false, 0, 0);
     // Turn on the texcoord attribute
-    gl.enable_vertex_attrib_array(texcoordLocation as u32);
+    gl.enable_vertex_attrib_array(texcoord_location as u32);
     // bind the texcoord buffer.
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoordBuffer));
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoord_buffer));
     // Tell the texcoord attribute how to get data out of texcoordBuffer (ARRAY_BUFFER)
     // gl.vertex_attrib_pointer(texcoordLocation, 2, GL::FLOAT, false, 0, 0);
-    gl.vertex_attrib_pointer_with_i32(texcoordLocation as u32, 2, GL::FLOAT, false, 0, 0);
+    gl.vertex_attrib_pointer_with_i32(texcoord_location as u32, 2, GL::FLOAT, false, 0, 0);
     // set the resolution
-    gl.uniform2f(resolutionLocation.as_ref(), 1000.0, 500.0);
+    gl.uniform2f(resolution_location.as_ref(), 1000.0, 500.0);
     // Draw the rectangle.
     gl.draw_arrays(GL::TRIANGLES, 0, 6);
 }
@@ -184,10 +190,19 @@ void main() {
 
 pub fn get_webgl_context_by_id(id: &str) -> WebGlRenderingContext {
     let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document.get_element_by_id(id).unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+    let canvas = document
+        .get_element_by_id(id)
+        .unwrap()
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .unwrap();
     canvas.set_width(CANVAS_WIDTH as u32);
     canvas.set_height(CANVAS_HEIGHT as u32);
-    let context = canvas.get_context("webgl").unwrap().unwrap().dyn_into::<WebGlRenderingContext>().unwrap();
+    let context = canvas
+        .get_context("webgl")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<WebGlRenderingContext>()
+        .unwrap();
     context.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
     context.clear_color(0.53, 0.8, 0.98, 1.);
     context.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
@@ -232,4 +247,3 @@ pub fn load_texture_image(gl: WebGlRenderingContext, src: &str) {
 }
 
 */
-
