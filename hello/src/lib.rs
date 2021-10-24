@@ -79,7 +79,8 @@ fn render(image: &HtmlImageElement) {
     let position_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&position_buffer));
 
-    set_rectangle(&gl, 0.0, 0.0, imgage.CANVAS_WIDTH, CANVAS_HEIGHT); // !!!
+    set_rectangle(&gl, 0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT); // !!!
+    // set_rectangle(&gl, 0.0, 0.0, image.get_width(), image.get_height()); // !!!
 
     let texcoord_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoord_buffer));
