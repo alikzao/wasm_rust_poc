@@ -11,5 +11,5 @@
   ],
   "module": "hello.js",
   "types": "hello.d.ts",
-  "sideEffects": false
+  "sideEffects": "false"
 }

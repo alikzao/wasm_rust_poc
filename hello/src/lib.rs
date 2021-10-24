@@ -71,7 +71,10 @@ fn render(image: &HtmlImageElement) {
     let gl = get_context(&canvas);
     let program = gl.create_program().unwrap();
     gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER, VERTEX_SHADER)); //GL::VERTEX_SHADER,
-    gl.attach_shader(&program, &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER)); //GL::FRAGMENT_SHADER
+    gl.attach_shader(
+        &program,
+        &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER),
+    ); //GL::FRAGMENT_SHADER
     gl.link_program(&program);
     let position_location = gl.get_attrib_location(&program, "a_position");
     let texcoord_location = gl.get_attrib_location(&program, "a_texCoord");
@@ -79,8 +82,8 @@ fn render(image: &HtmlImageElement) {
     let position_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&position_buffer));
 
-    set_rectangle(&gl, 0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT); // !!!
-    // set_rectangle(&gl, 0.0, 0.0, image.get_width(), image.get_height()); // !!!
+    set_rectangle(&gl, 0.0, 0.0, image.width() as f32, image.height() as f32); // !!!
+                                                                               // set_rectangle(&gl, 0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT); // !!!
 
     let texcoord_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoord_buffer));
@@ -105,7 +108,7 @@ fn render(image: &HtmlImageElement) {
     #[rustfmt::skip]
     gl.tex_image_2d_with_u32_and_u32_and_image(GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, &image).expect("Texture image 2d");
     let resolution_location = gl.get_uniform_location(&program, "u_resolution");
-    resize_canvas(canvas, &gl);
+    let (width, height) = resize_canvas(canvas, &gl);
     // lookup uniforms
     gl.use_program(Some(&program));
     gl.enable_vertex_attrib_array(position_location as u32);
@@ -120,7 +123,7 @@ fn render(image: &HtmlImageElement) {
     // Tell the texcoord attribute how to get data out of texcoordBuffer (ARRAY_BUFFER)
     gl.vertex_attrib_pointer_with_i32(texcoord_location as u32, 2, GL::FLOAT, false, 0, 0);
     // set the resolution
-    gl.uniform2f(resolution_location.as_ref(), 1000.0, 500.0);
+    gl.uniform2f(resolution_location.as_ref(), width, height);
     // Draw the rectangle.
     gl.draw_arrays(GL::TRIANGLES, 0, 6);
 }
@@ -166,16 +169,25 @@ void main() {
 
 fn get_canvas(id: &str) -> HtmlCanvasElement {
     let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document.get_element_by_id(id).unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+    let canvas = document
+        .get_element_by_id(id)
+        .unwrap()
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .unwrap();
     canvas
 }
 
-fn get_context(canvas: &HtmlCanvasElement)  -> WebGlRenderingContext {
-    let context = canvas.get_context("webgl").unwrap().unwrap().dyn_into::<WebGlRenderingContext>().unwrap();
+fn get_context(canvas: &HtmlCanvasElement) -> WebGlRenderingContext {
+    let context = canvas
+        .get_context("webgl")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<WebGlRenderingContext>()
+        .unwrap();
     context
 }
 
-fn resize_canvas(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext){
+fn resize_canvas0(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext) {
     canvas.set_width(CANVAS_WIDTH as u32);
     canvas.set_height(CANVAS_HEIGHT as u32);
     gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
@@ -183,7 +195,7 @@ fn resize_canvas(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext){
     gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 }
 
-fn resize_canvas1(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext){
+fn resize_canvas(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext) -> (f32, f32) {
     let offset_width = canvas.offset_width() as u32;
     let offset_height = canvas.offset_height() as u32;
     let width = canvas.width();
@@ -195,14 +207,8 @@ fn resize_canvas1(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext){
     if diff_height {
         canvas.set_height(offset_height);
     }
-    // if diff_width || diff_height {
-        // canvas.resize(offset_width, offset_height); // NOT COMPILE
-        // canvas.onresize();
-    // }
-    gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+    gl.viewport(0, 0, offset_width as i32, offset_height as i32);
     gl.clear_color(0.53, 0.8, 0.98, 1.);
     gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
+    (offset_width as f32, offset_height as f32)
 }
-
-
-
