@@ -11,8 +11,6 @@
     <canvas></canvas>
 
     <script type="text/javascript">
-        const gl = document.querySelector('canvas').getContext('webgl');
-        const ext = gl.getExtension('ANGLE_instanced_arrays');
         const vs = `
 attribute vec2 position;
 attribute vec2 uv;
@@ -40,9 +38,14 @@ void main() {
   gl_FragColor = texture2D(spriteAtlas, v_uv);
 }
 `;
+        var canvas = document.querySelector("canvas");
+        var gl = canvas.getContext("webgl");
+        const ext = gl.getExtension('ANGLE_instanced_arrays');
+        var program = gl.createProgram();
+        gl.attachShader(program, get_shader(gl, vs, gl.VERTEX_SHADER));
+        gl.attachShader(program, get_shader(gl, fs, gl.FRAGMENT_SHADER));
+        gl.linkProgram(program);
 
-        // const program = twgl.createProgram(gl, [vs, fs]);
-        const program = createProgram(gl, [vs, fs]);
         const positionLoc = gl.getAttribLocation(program, 'position');
         const uvLoc = gl.getAttribLocation(program, 'uv');
         const offsetLoc = gl.getAttribLocation(program, 'offset');
@@ -74,7 +77,6 @@ void main() {
             1, 1,
         ]), gl.STATIC_DRAW);
 
-
         // create typed array for instanced data
         const maxSprites = 1000;
         const offsets = new Float32Array(maxSprites * 2);
@@ -97,10 +99,7 @@ void main() {
         gl.bufferData(gl.ARRAY_BUFFER, uvScales.byteLength, gl.DYNAMIC_DRAW);
 
         let spriteNdx = 0;
-        function addSprite(
-            spriteAtlasWidth, spriteAtlasHeight,
-            srcX, srcY, srcWidth, srcHeight,
-            dstX, dstY, dstWidth, dstHeight) {
+        function addSprite(spriteAtlasWidth, spriteAtlasHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight) {
             const off0 = spriteNdx * 2;
             const off1 = off0 + 1;
             offsets[off0] = dstX;
@@ -150,201 +149,11 @@ void main() {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-        function getElementById(id) {
-            return typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null;
-        }
-
-        function getProgramOptions(opt_attribs, opt_locations, opt_errorCallback) {
-            var transformFeedbackVaryings;
-            var transformFeedbackMode;
-            if (typeof opt_locations === 'function') {
-                opt_errorCallback = opt_locations;
-                opt_locations = undefined;
-            }
-            if (typeof opt_attribs === 'function') {
-                opt_errorCallback = opt_attribs;
-                opt_attribs = undefined;
-            } else if (opt_attribs && !Array.isArray(opt_attribs)) {
-                // If we have an errorCallback we can just return this object Otherwise we need to construct one with default errorCallback
-                if (opt_attribs.errorCallback) {
-                    return opt_attribs;
-                }
-                var opt = opt_attribs;
-                opt_errorCallback = opt.errorCallback;
-                opt_attribs = opt.attribLocations;
-                transformFeedbackVaryings = opt.transformFeedbackVaryings;
-                transformFeedbackMode = opt.transformFeedbackMode;
-            }
-            var options = {
-                errorCallback: opt_errorCallback,
-                transformFeedbackVaryings: transformFeedbackVaryings,
-                transformFeedbackMode: transformFeedbackMode
-            };
-            if (opt_attribs) {
-                var attribLocations = {};
-                if (Array.isArray(opt_attribs)) {
-                    opt_attribs.forEach(function (attrib, ndx) {
-                        attribLocations[attrib] = opt_locations ? opt_locations[ndx] : ndx;
-                    });
-                } else {
-                    attribLocations = opt_attribs;
-                }
-                options.attribLocations = attribLocations;
-            }
-            return options;
-        }
-        function isShader(gl, t) {
-            return typeof WebGLShader !== 'undefined' && t instanceof WebGLShader;
-        }
-        function deleteShaders(gl, shaders) {
-            shaders.forEach(function (shader) {
-                gl.deleteShader(shader);
-            });
-        }
-        function glEnumToString() {
-            var haveEnumsForType = {};
-            var enums = {};
-            function addEnums(gl) {
-                var type = gl.constructor.name;
-                if (!haveEnumsForType[type]) {
-                    for (var key in gl) {
-                        if (typeof gl[key] === 'number') {
-                            var existing = enums[gl[key]];
-                            enums[gl[key]] = existing ? "".concat(existing, " | ").concat(key) : key;
-                        }
-                    }
-                    haveEnumsForType[type] = true;
-                }
-            }
-            return function glEnumToString(gl, value) {
-                addEnums(gl);
-                return enums[value] || (typeof value === 'number' ? "0x".concat(value.toString(16)) : value);
-            };
-        }
-        var SEPARATE_ATTRIBS = 0x8c8d;
-        var FRAGMENT_SHADER = 0x8b30;
-        var VERTEX_SHADER = 0x8b31;
-        var LINK_STATUS = 0x8b82;
-        var COMPILE_STATUS = 0x8b81;
-
-        function getShaderTypeFromScriptType(gl, scriptType) {
-            if (scriptType.indexOf("frag") >= 0) {
-                return 0x8b30;
-            } else if (scriptType.indexOf("vert") >= 0) {
-                return 0x8b31;
-            }
-            return undefined;
-        }
-
-        function loadShader(gl, shaderSource, shaderType, opt_errorCallback) {
-            var spaceRE = /^[ \t]*\n/;
-            var errFn = opt_errorCallback; // Create the shader object
-            var shader = gl.createShader(shaderType); // Remove the first end of line because WebGL 2.0 requires
-            // Has one line before it which is invalid according to GLSL ES 3.00
-            var lineOffset = 0;
-            if (spaceRE.test(shaderSource)) {
-                lineOffset = 1;
-                shaderSource = shaderSource.replace(spaceRE, '');
-            } // Load the shader source
-            gl.shaderSource(shader, shaderSource); // Compile the shader
-            gl.compileShader(shader); // Check the compile status
-            // var compiled = gl.getShaderParameter(shader, COMPILE_STATUS);
-            var compiled = gl.getShaderParameter(shader, 0x8b81);
-            if (!compiled) {
-                var lastError = gl.getShaderInfoLog(shader);
-                errFn("".concat(addLineNumbersWithError(shaderSource, lastError, lineOffset), "\nError compiling ").concat(utils.glEnumToString(gl, shaderType), ": ").concat(lastError));
-                gl.deleteShader(shader);
-                return null;
-            }
-
+        function get_shader(gl, shaderSource, shaderType) {
+            var shader = gl.createShader(shaderType);
+            gl.shaderSource(shader, shaderSource);
+            gl.compileShader(shader);
             return shader;
-        }
-
-        function createProgram(gl, shaders, opt_attribs, opt_locations, opt_errorCallback) {
-            var progOptions = getProgramOptions(opt_attribs, opt_locations, opt_errorCallback);
-            var realShaders = [];
-            var newShaders = [];
-            var defaultShaderType = ["VERTEX_SHADER", "FRAGMENT_SHADER"];
-            for (var ndx = 0; ndx < shaders.length; ++ndx) {
-                var shader = shaders[ndx];
-                if (typeof shader === 'string') {
-                    var elem = getElementById(shader);
-                    var src = elem ? elem.text : shader;
-                    var type = gl[defaultShaderType[ndx]];
-                    if (elem && elem.type) {
-                        type = getShaderTypeFromScriptType(gl, elem.type) || type;
-                    }
-                    shader = loadShader(gl, src, type, progOptions.errorCallback);
-                    newShaders.push(shader);
-                }
-                if (isShader(gl, shader)) {
-                    realShaders.push(shader);
-                }
-            }
-            if (realShaders.length !== shaders.length) {
-                progOptions.errorCallback("not enough shaders for program");
-                deleteShaders(gl, newShaders);
-                return null;
-            }
-            var program = gl.createProgram();
-            realShaders.forEach(function (shader) {
-                gl.attachShader(program, shader);
-            });
-            if (progOptions.attribLocations) {
-                Object.keys(progOptions.attribLocations).forEach(function (attrib) {
-                    gl.bindAttribLocation(program, progOptions.attribLocations[attrib], attrib);
-                });
-            }
-            var varyings = progOptions.transformFeedbackVaryings;
-            if (varyings) {
-                if (varyings.attribs) {
-                    varyings = varyings.attribs;
-                }
-                if (!Array.isArray(varyings)) {
-                    varyings = Object.keys(varyings);
-                }
-                gl.transformFeedbackVaryings(program, varyings, progOptions.transformFeedbackMode || 0x8c8d);
-            }
-            gl.linkProgram(program); // Check the link status
-            var linked = gl.getProgramParameter(program, 0x8b82);
-            if (!linked) {
-                // something went wrong with the link
-                var lastError = gl.getProgramInfoLog(program);
-                progOptions.errorCallback("".concat(realShaders.map(function (shader) {
-                    var src = addLineNumbersWithError(gl.getShaderSource(shader), '', 0);
-                    var type = gl.getShaderParameter(shader, gl.SHADER_TYPE);
-                    return "".concat(glEnumToString(gl, type), "\n").concat(src, "}");
-                }).join('\n'), "\nError in program linking: ").concat(lastError));
-                gl.deleteProgram(program);
-                deleteShaders(gl, newShaders);
-                return null;
-            }
-            return program;
-        }
-        function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
-        function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
-        function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-        function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter); }
-        function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
-        function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-
-        function addLineNumbersWithError(src) {
-            var log = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
-            var lineOffset = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
-            // Note: Error message formats are not defined by any spec so this may or may not work.
-            var errorRE = /ERROR:\s*\d+:(\d+)/gi;
-            var matches = _toConsumableArray(log.matchAll(errorRE));
-            var lineNoToErrorMap = new Map(matches.map(function (m, ndx) {
-                var lineNo = parseInt(m[1]);
-                var next = matches[ndx + 1];
-                var end = next ? next.index : log.length;
-                var msg = log.substring(m.index, end);
-                return [lineNo - 1, msg];
-            }));
-            return src.split('\n').map(function (line, lineNo) {
-                var err = lineNoToErrorMap.get(lineNo);
-                return "".concat(lineNo + 1 + lineOffset, ": ").concat(line).concat(err ? "\n\n^^^ ".concat(err) : '');
-            }).join('\n');
         }
 
         function render(time) {
@@ -361,7 +170,6 @@ void main() {
                     sp.w, sp.h,
                 );
             }
-
             // copy the latest sprite instance data to their respective buffers and setup the attributes.
             // NOTE: for the attributes it would be better// to use a vertex array
             gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -400,7 +208,6 @@ void main() {
 
             // pass in a projection matrix that converts to pixel space so the top left corner is 0,0 and the bottom right corner
             // is canvas.width, canvas.height
-
             // if you had a 3d math library this would be something like
             gl.uniformMatrix4fv(matrixLoc, false, [
                 2 / gl.canvas.width, 0, 0, 0,
@@ -413,8 +220,6 @@ void main() {
             requestAnimationFrame(render);
         }
         requestAnimationFrame(render);
-
-
 
     </script>
 </body>
