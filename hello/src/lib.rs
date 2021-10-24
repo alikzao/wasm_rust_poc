@@ -15,8 +15,8 @@ use web_sys::HtmlImageElement;
 // use web_sys::WebGlRenderingContext;
 use web_sys::WebGlRenderingContext as GL;
 
-pub static CANVAS_WIDTH: i32 = 2000;
-pub static CANVAS_HEIGHT: i32 = 512;
+pub static CANVAS_WIDTH: i32 = 1000;
+pub static CANVAS_HEIGHT: i32 = 800;
 
 #[wasm_bindgen]
 extern "C" {
@@ -204,10 +204,10 @@ fn resize_canvas1(canvas: HtmlCanvasElement, gl: &WebGlRenderingContext){
     if diff_height {
         canvas.set_height(offset_height);
     }
-    if diff_width || diff_height {
+    // if diff_width || diff_height {
         // canvas.resize(offset_width, offset_height); // NOT COMPILE
         // canvas.onresize();
-    }
+    // }
     gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
     gl.clear_color(0.53, 0.8, 0.98, 1.);
     gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
