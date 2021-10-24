@@ -1,7 +1,5 @@
 extern crate wasm_bindgen;
 // use crate::shader::Shader;
-// use crate::shader::ShaderKind;
-// use crate::State;
 
 // use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
@@ -15,8 +13,8 @@ use web_sys::HtmlImageElement;
 // use web_sys::WebGlRenderingContext;
 use web_sys::WebGlRenderingContext as GL;
 
-pub static CANVAS_WIDTH: i32 = 1000;
-pub static CANVAS_HEIGHT: i32 = 800;
+pub static CANVAS_WIDTH: f32 = 1000.0;
+pub static CANVAS_HEIGHT: f32 = 800.0;
 
 #[wasm_bindgen]
 extern "C" {
@@ -26,11 +24,6 @@ extern "C" {
 #[wasm_bindgen]
 pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
-    //let gl = &self.gl;
-    // let app = Rc::new(App::new());
-    // let gl = Rc::new(create_webgl_context(Rc::clone(&app)).unwrap());
-    // load_texture_image(_gl, "./atlas.png.png");
-    // let shader_program = init_shaders(&_gl);
     main();
 }
 
@@ -78,10 +71,7 @@ fn render(image: &HtmlImageElement) {
     let gl = get_context(&canvas);
     let program = gl.create_program().unwrap();
     gl.attach_shader(&program, &get_shader(&gl, GL::VERTEX_SHADER, VERTEX_SHADER)); //GL::VERTEX_SHADER,
-    gl.attach_shader(
-        &program,
-        &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER),
-    ); //GL::FRAGMENT_SHADER
+    gl.attach_shader(&program, &get_shader(&gl, GL::FRAGMENT_SHADER, FRAGMENT_SHADER)); //GL::FRAGMENT_SHADER
     gl.link_program(&program);
     let position_location = gl.get_attrib_location(&program, "a_position");
     let texcoord_location = gl.get_attrib_location(&program, "a_texCoord");
@@ -89,7 +79,7 @@ fn render(image: &HtmlImageElement) {
     let position_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&position_buffer));
 
-    set_rectangle(&gl, 0.0, 0.0, 500.0, 500.0); // !!!
+    set_rectangle(&gl, 0.0, 0.0, imgage.CANVAS_WIDTH, CANVAS_HEIGHT); // !!!
 
     let texcoord_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(GL::ARRAY_BUFFER, Some(&texcoord_buffer));
