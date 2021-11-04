@@ -32,6 +32,9 @@ varying vec2 v_texcoord;
 uniform sampler2D u_texture;
 
 void main() {
+   if (v_texcoord.x < 0.0 || v_texcoord.y < 0.0 || v_texcoord.x > 1.0 || v_texcoord.y > 1.0) {
+     discard;
+   }
    gl_FragColor = texture2D(u_texture, v_texcoord);
 }
 </script>
@@ -136,6 +139,10 @@ void main() {
             offY: 0,
             // offX: Math.random() * 0.75,
             // offY: Math.random() * 0.75,
+            rotation: Math.random() * Math.PI * 2,
+            deltaRotation: (0.5 + Math.random() * 0.5) * (Math.random() > 0.5 ? -1 : 1),
+            // width:  1,
+            // height: 1,
             textureInfo: textureInfos[Math.random() * textureInfos.length | 0],
         };
         drawInfo.width  = Math.random() * (1 - drawInfo.offX);
@@ -171,6 +178,7 @@ void main() {
         if (drawInfo.y >= gl.canvas.height) {
           drawInfo.dy = -1;
         }
+        drawInfo.rotation += drawInfo.deltaRotation * deltaTime;
       });
     }
 
@@ -204,7 +212,7 @@ void main() {
         var srcHeight = 205;
         // var srcWidth  = drawInfo.textureInfo.width  * drawInfo.width;
         // var srcHeight = drawInfo.textureInfo.height * drawInfo.height;
-        drawImage(drawInfo.textureInfo.texture, drawInfo.textureInfo.width, drawInfo.textureInfo.height, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight);
+        drawImage(drawInfo.textureInfo.texture, drawInfo.textureInfo.width, drawInfo.textureInfo.height, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, drawInfo.rotation);
       });
     }
     var then = 0;
@@ -219,13 +227,14 @@ void main() {
     requestAnimationFrame(render);
 
     // Unlike images, textures do not have a width and height associated with them so we'll pass in the width and height of the texture
-    function drawImage(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight) {
-      if (dstX === undefined)        {dstX = srcX;srcX = 0;}
-      if (dstY === undefined)        {dstY = srcY;srcY = 0;}
-      if (srcWidth === undefined)    {srcWidth = texWidth;}
-      if (srcHeight === undefined)   {srcHeight = texHeight;}
-      if (dstWidth === undefined)    {dstWidth = srcWidth;srcWidth = texWidth;}
-      if (dstHeight === undefined)   {dstHeight = srcHeight;srcHeight = texHeight;}
+    function drawImage(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
+      if (dstX === undefined) {dstX = srcX;srcX = 0;}
+      if (dstY === undefined) {dstY = srcY;srcY = 0;}
+      if (srcWidth === undefined) {srcWidth = texWidth;}
+      if (srcHeight === undefined) {srcHeight = texHeight;}
+      if (dstWidth === undefined) {dstWidth = srcWidth;srcWidth = texWidth;}
+      if (dstHeight === undefined) {dstHeight = srcHeight;srcHeight = texHeight;}
+      if (srcRotation === undefined) {srcRotation = 0;}
       gl.bindTexture(gl.TEXTURE_2D, tex);
       // Tell WebGL to use our shader program pair
       gl.useProgram(program);
@@ -244,6 +253,62 @@ void main() {
       matrix = scale(matrix, dstWidth, dstHeight, 1);
       // Set the matrix.
       gl.uniformMatrix4fv(matrixLocation, false, matrix);
+      // just like a 2d projection matrix except in texture space (0 to 1) instead of clip space. This matrix puts us in pixel space.
+      var texMatrix = scaling(1 / texWidth, 1 / texHeight, 1);
+      // We need to pick a place to rotate around We'll move to the middle, rotate, then move back
+      var texMatrix = translate(texMatrix, texWidth * 0.5, texHeight * 0.5, 0);
+      var texMatrix = zRotate(texMatrix, srcRotation);
+      var texMatrix = translate(texMatrix, texWidth * -0.5, texHeight * -0.5, 0);
+      // because were in pixel space the scale and translation are now in pixels
+      var texMatrix = translate(texMatrix, srcX, srcY, 0);
+      var texMatrix = scale(texMatrix, srcWidth, srcHeight, 1);
+      // Set the texture matrix.
+      gl.uniformMatrix4fv(textureMatrixLocation, false, texMatrix);
+      // Tell the shader to get the texture from texture unit 0
+      gl.uniform1i(textureLocation, 0);
+      // draw the quad (2 triangles, 6 vertices)
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    function drawImage1(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
+      if (dstX === undefined)        {dstX = srcX;srcX = 0;}
+      if (dstY === undefined)        {dstY = srcY;srcY = 0;}
+      if (srcWidth === undefined)    {srcWidth = texWidth;}
+      if (srcHeight === undefined)   {srcHeight = texHeight;}
+      if (dstWidth === undefined)    {dstWidth = srcWidth;srcWidth = texWidth;}
+      if (dstHeight === undefined)   {dstHeight = srcHeight;srcHeight = texHeight;}
+      if (srcRotation === undefined) {srcRotation = 0;}
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      // Tell WebGL to use our shader program pair
+      gl.useProgram(program);
+      // Setup the attributes to pull data from our buffers
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+      gl.enableVertexAttribArray(texcoordLocation);
+      gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+      // this matrix will convert from pixels to clip space
+      var matrix = orthographic(0, gl.canvas.width, gl.canvas.height, 0, -1, 1);
+      // this matrix will translate our quad to dstX, dstY
+      matrix = translate(matrix, dstX, dstY, 0);
+      // this matrix will scale our 1 unit quad from 1 unit to texWidth, texHeight units
+      matrix = scale(matrix, dstWidth, dstHeight, 1);
+      // устанавливаем текстурную матрицу
+      gl.uniformMatrix4fv(matrixLocation, false, matrix);
+      // -------------------------------------------------------------------
+      // По аналогии с проекционной матрицей нам нужно переместиться из текстурного пространства (0..1). Эта матрица перенесёт нас в пиксельное пространство.
+      var texMatrix = scaling(1/texWidth, 1/texHeight, 1);
+      // Нам нужно выбрать точку, вокруг которой будет происходить вращение.
+      // Мы сместимся в центр, осуществим поворот и вернёмся обратно в начальную точку.
+      var texMatrix = translate(texMatrix, texWidth * 0.5, texHeight * 0.5, 0);
+      var texMatrix = zRotate(texMatrix, srcRotation);
+      var texMatrix = translate(texMatrix, texWidth * -0.5, texHeight * -0.5, 0);
+      // так как мы находимся в пиксельном пространстве, масштабирование и перенос выполняется в пикселях
+      var texMatrix = translate(texMatrix, srcX, srcY, 0);
+      var texMatrix = scale(texMatrix, srcWidth, srcHeight, 1);
+      gl.uniformMatrix4fv(textureMatrixLocation, false, texMatrix);
+      // -------------------------------------------------------------------
       // Because texture coordinates go from 0 to 1 and because our texture coordinates are already a unit quad we can select an area of the texture by scaling the unit quad down
       var texMatrix = translation(srcX / texWidth, srcY / texHeight, 0);
       texMatrix = scale(texMatrix, srcWidth / texWidth, srcHeight / texHeight, 1);
@@ -360,7 +425,59 @@ void main() {
     }
     return dst;
   }
-
+  function scaling(sx, sy, sz, dst) {
+    dst = dst || new Float32Array(16);
+    dst[ 0] = sx;
+    dst[ 1] = 0;
+    dst[ 2] = 0;
+    dst[ 3] = 0;
+    dst[ 4] = 0;
+    dst[ 5] = sy;
+    dst[ 6] = 0;
+    dst[ 7] = 0;
+    dst[ 8] = 0;
+    dst[ 9] = 0;
+    dst[10] = sz;
+    dst[11] = 0;
+    dst[12] = 0;
+    dst[13] = 0;
+    dst[14] = 0;
+    dst[15] = 1;
+    return dst;
+  }
+  function zRotate(m, angleInRadians, dst) {
+    // This is the optimized version of return multiply(m, zRotation(angleInRadians), dst);
+    dst = dst || new Float32Array(16);
+    var m00 = m[0 * 4 + 0];
+    var m01 = m[0 * 4 + 1];
+    var m02 = m[0 * 4 + 2];
+    var m03 = m[0 * 4 + 3];
+    var m10 = m[1 * 4 + 0];
+    var m11 = m[1 * 4 + 1];
+    var m12 = m[1 * 4 + 2];
+    var m13 = m[1 * 4 + 3];
+    var c = Math.cos(angleInRadians);
+    var s = Math.sin(angleInRadians);
+    dst[ 0] = c * m00 + s * m10;
+    dst[ 1] = c * m01 + s * m11;
+    dst[ 2] = c * m02 + s * m12;
+    dst[ 3] = c * m03 + s * m13;
+    dst[ 4] = c * m10 - s * m00;
+    dst[ 5] = c * m11 - s * m01;
+    dst[ 6] = c * m12 - s * m02;
+    dst[ 7] = c * m13 - s * m03;
+    if (m !== dst) {
+      dst[ 8] = m[ 8];
+      dst[ 9] = m[ 9];
+      dst[10] = m[10];
+      dst[11] = m[11];
+      dst[12] = m[12];
+      dst[13] = m[13];
+      dst[14] = m[14];
+      dst[15] = m[15];
+    }
+    return dst;
+  }
 </script>
 </body>
 </html>
