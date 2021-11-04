@@ -140,6 +140,7 @@ void main() {
             // offX: Math.random() * 0.75,
             // offY: Math.random() * 0.75,
             rotation: Math.random() * Math.PI * 2,
+            // rotation: 440 * Math.PI * 2,
             deltaRotation: (0.5 + Math.random() * 0.5) * (Math.random() > 0.5 ? -1 : 1),
             // width:  1,
             // height: 1,
@@ -164,20 +165,8 @@ void main() {
 
     function update(deltaTime) {
       drawInfos.forEach((drawInfo) => {
-        drawInfo.x += drawInfo.dx * speed * deltaTime;
-        drawInfo.y += drawInfo.dy * speed * deltaTime;
-        if (drawInfo.x < 0) {
-          drawInfo.dx = 1;
-        }
-        if (drawInfo.x >= gl.canvas.width) {
-          drawInfo.dx = -1;
-        }
-        if (drawInfo.y < 0) {
-          drawInfo.dy = 1;
-        }
-        if (drawInfo.y >= gl.canvas.height) {
-          drawInfo.dy = -1;
-        }
+        drawInfo.x = 290;
+        drawInfo.y = 150;
         drawInfo.rotation += drawInfo.deltaRotation * deltaTime;
       });
     }
@@ -212,7 +201,10 @@ void main() {
         var srcHeight = 205;
         // var srcWidth  = drawInfo.textureInfo.width  * drawInfo.width;
         // var srcHeight = drawInfo.textureInfo.height * drawInfo.height;
-        drawImage(drawInfo.textureInfo.texture, drawInfo.textureInfo.width, drawInfo.textureInfo.height, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, drawInfo.rotation);
+        // ---------------------------------------------------------------------
+        var rot = drawInfo.rotation;
+        // var rot = 281;
+        drawImage(drawInfo.textureInfo.texture, drawInfo.textureInfo.width, drawInfo.textureInfo.height, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, rot);
       });
     }
     var then = 0;
@@ -227,7 +219,7 @@ void main() {
     requestAnimationFrame(render);
 
     // Unlike images, textures do not have a width and height associated with them so we'll pass in the width and height of the texture
-    function drawImage(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
+    function drawImage1(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
       if (dstX === undefined) {dstX = srcX;srcX = 0;}
       if (dstY === undefined) {dstY = srcY;srcY = 0;}
       if (srcWidth === undefined) {srcWidth = texWidth;}
@@ -270,7 +262,7 @@ void main() {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    function drawImage1(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
+    function drawImage(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight, srcRotation) {
       if (dstX === undefined)        {dstX = srcX;srcX = 0;}
       if (dstY === undefined)        {dstY = srcY;srcY = 0;}
       if (srcWidth === undefined)    {srcWidth = texWidth;}
