@@ -1,226 +1,366 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-    <style>
-        canvas { border: 1px solid black; margin: 5px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Title</title>
+  <style>
+    canvas { border: 1px solid black; margin: 5px; }
+  </style>
 </head>
 <body>
-    <canvas></canvas>
+<canvas id="canvas"></canvas>
+<!-- vertex shader -->
+<script  id="vertex-shader-2d" type="x-shader/x-vertex">
+attribute vec4 a_position;
+attribute vec2 a_texcoord;
 
-    <script type="text/javascript">
-        const vs = `
-attribute vec2 position;
-attribute vec2 uv;
-attribute vec2 offset;    // instanced
-attribute vec2 scale;     // instanced
-attribute vec2 uvOffset;  // instanced
-attribute vec2 uvScale;   // instanced
+uniform mat4 u_matrix;
+uniform mat4 u_textureMatrix;
 
-uniform mat4 matrix;
-
-varying vec2 v_uv;
+varying vec2 v_texcoord;
 
 void main() {
-  gl_Position = matrix * vec4(position * scale + offset, 0, 1);
-
-  v_uv = uv * uvScale + uvOffset;
+   gl_Position = u_matrix * a_position;
+   v_texcoord = (u_textureMatrix * vec4(a_texcoord, 0, 1)).xy;
 }
-`;
-        const fs = `
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D spriteAtlas;
+</script>
+<script  id="fragment-shader-2d" type="x-shader/x-fragment">
+precision mediump float;
+
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
 
 void main() {
-  gl_FragColor = texture2D(spriteAtlas, v_uv);
+   gl_FragColor = texture2D(u_texture, v_texcoord);
 }
-`;
-        var canvas = document.querySelector("canvas");
-        var gl = canvas.getContext("webgl");
-        const ext = gl.getExtension('ANGLE_instanced_arrays');
-        var program = gl.createProgram();
-        gl.attachShader(program, get_shader(gl, vs, gl.VERTEX_SHADER));
-        gl.attachShader(program, get_shader(gl, fs, gl.FRAGMENT_SHADER));
-        gl.linkProgram(program);
+</script>
+<script type="text/javascript">
+  "use strict";
 
-        const positionLoc = gl.getAttribLocation(program, 'position');
-        const uvLoc = gl.getAttribLocation(program, 'uv');
-        const offsetLoc = gl.getAttribLocation(program, 'offset');
-        const scaleLoc = gl.getAttribLocation(program, 'scale');
-        const uvOffsetLoc = gl.getAttribLocation(program, 'uvOffset');
-        const uvScaleLoc = gl.getAttribLocation(program, 'uvScale');
-        const matrixLoc = gl.getUniformLocation(program, 'matrix');
+    const canvas_width  = 800;
+    const canvas_height = 500;
 
-        // setup quad positions and uv
-        const positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-            0, 0,
-            1, 0,
-            0, 1,
-            0, 1,
-            1, 0,
-            1, 1,
-        ]), gl.STATIC_DRAW);
+  function get_shader(gl, scriptId, type_shader) {
+    const shaderScript = document.getElementById(scriptId);
+    const shader = gl.createShader(type_shader); // Create the shader object
+    gl.shaderSource(shader, shaderScript.text); // Load the shader source
+    gl.compileShader(shader); // Compile the shader
+    return shader;
+  }
 
-        const uvBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-            0, 0,
-            1, 0,
-            0, 1,
-            0, 1,
-            1, 0,
-            1, 1,
-        ]), gl.STATIC_DRAW);
-
-        // create typed array for instanced data
-        const maxSprites = 1000;
-        const offsets = new Float32Array(maxSprites * 2);
-        const scales = new Float32Array(maxSprites * 2);
-        const uvOffsets = new Float32Array(maxSprites * 2);
-        const uvScales = new Float32Array(maxSprites * 2);
-
-        // create buffers fo instanced data
-        const offsetBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, offsets.byteLength, gl.DYNAMIC_DRAW);
-        const scaleBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, scaleBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, scales.byteLength, gl.DYNAMIC_DRAW);
-        const uvOffsetBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, uvOffsetBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, uvOffsets.byteLength, gl.DYNAMIC_DRAW);
-        const uvScaleBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, uvScaleBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, uvScales.byteLength, gl.DYNAMIC_DRAW);
-
-        let spriteNdx = 0;
-        function addSprite(spriteAtlasWidth, spriteAtlasHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight) {
-            const off0 = spriteNdx * 2;
-            const off1 = off0 + 1;
-            offsets[off0] = dstX;
-            offsets[off1] = dstY;
-            scales[off0] = dstWidth;
-            scales[off1] = dstHeight;
-            uvOffsets[off0] = srcX / spriteAtlasWidth;
-            uvOffsets[off1] = srcY / spriteAtlasHeight;
-            uvScales[off0] = srcWidth / spriteAtlasWidth;
-            uvScales[off1] = srcHeight / spriteAtlasHeight;
-            ++spriteNdx;
+  function main() {
+    var canvas = document.querySelector("#canvas");
+    var gl = canvas.getContext("webgl");
+    // setup GLSL program
+    var program = gl.createProgram();
+    gl.attachShader(program, get_shader(gl, "vertex-shader-2d", gl.VERTEX_SHADER));
+    gl.attachShader(program, get_shader(gl, "fragment-shader-2d", gl.FRAGMENT_SHADER));
+    gl.linkProgram(program);
+    // look up where the vertex data needs to go.
+    var positionLocation = gl.getAttribLocation(program, "a_position");
+    var texcoordLocation = gl.getAttribLocation(program, "a_texcoord");
+    // lookup uniforms
+    var matrixLocation = gl.getUniformLocation(program, "u_matrix");
+    var textureMatrixLocation = gl.getUniformLocation(program, "u_textureMatrix");
+    var textureLocation = gl.getUniformLocation(program, "u_texture");
+    // Create a buffer.
+    var positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    // Put a unit quad in the buffer
+    var positions = [
+      0, 0,
+      0, 1,
+      1, 0,
+      1, 0,
+      0, 1,
+      1, 1,
+    ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    // Create a buffer for texture coords
+    var texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    // Put texcoords in the buffer
+    var texcoords = [
+      0, 0,
+      0, 1,
+      1, 0,
+      1, 0,
+      0, 1,
+      1, 1,
+    ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texcoords), gl.STATIC_DRAW);
+    // creates a texture info { width: w, height: h, texture: tex }
+    // The texture will start with 1x1 pixels and be updated when the image has loaded
+    function loadImageAndCreateTextureInfo(url) {
+      var tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      // Fill the texture with a 1x1 blue pixel.
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
+      // let's assume all images are not a power of 2
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      var textureInfo = {width: 1, height: 1, texture: tex,};
+      var img = new Image();
+      img.addEventListener('load', function() {
+        textureInfo.width = img.width;
+        textureInfo.height = img.height;
+        gl.bindTexture(gl.TEXTURE_2D, textureInfo.texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      });
+      img.src = url;
+      return textureInfo;
+    }
+    var textureInfos = [
+      loadImageAndCreateTextureInfo('./bonus.png'),
+      // loadImageAndCreateTextureInfo('./leaves.jpg'),
+      // loadImageAndCreateTextureInfo('./keyboard.jpg'),
+    ];
+    var drawInfos = [];
+    var numToDraw = 1;
+    var speed = 60;
+    for (var ii = 0; ii < numToDraw; ++ii) {
+        var drawInfo = {
+            x: 0,
+            y: 0,
+            // x: Math.random() * gl.canvas.width,
+            // y: Math.random() * gl.canvas.height,
+            dx: Math.random() > 0.5 ? -1 : 1,
+            dy: Math.random() > 0.5 ? -1 : 1,
+            xScale: Math.random() * 0.25 + 0.25,
+            yScale: Math.random() * 0.25 + 0.25,
+            // xScale: 0,
+            // yScale: 0,
+            offX: 0,
+            offY: 0,
+            // offX: Math.random() * 0.75,
+            // offY: Math.random() * 0.75,
+            textureInfo: textureInfos[Math.random() * textureInfos.length | 0],
+        };
+        drawInfo.width  = Math.random() * (1 - drawInfo.offX);
+        drawInfo.height = Math.random() * (1 - drawInfo.offY);
+        if (Math.random() > 0.5) {
+            drawInfo.xScale *= -1;
+        } else {
+            drawInfo.offX = 1 - drawInfo.offX;
+            drawInfo.width *= -1;
         }
-
-        const sprites = [
-            {msg: 'A', x: 0,  y:  0, w: 64, h: 32, bg: 'red',    fg: 'yellow'},
-            {msg: 'B', x: 64, y:  0, w: 64, h: 32, bg: 'blue',   fg: 'white' },
-            {msg: 'C', x: 0,  y: 32, w: 40, h: 32, bg: 'green',  fg: 'pink'  },
-            {msg: 'D', x: 40, y: 32, w: 48, h: 32, bg: 'purple', fg: 'cyan'  },
-            {msg: 'F', x: 88, y: 32, w: 40, h: 32, bg: 'black',  fg: 'red'   },
-        ];
-
-        // make 5 sprites in an atlas
-        const spriteAtlasWidth = 128;
-        const spriteAtlasHeight = 64;
-        const ctx = document.createElement('canvas').getContext('2d');
-        ctx.canvas.width = spriteAtlasWidth;
-        ctx.canvas.height = spriteAtlasHeight;
-        for (const spr of sprites) {
-            ctx.fillStyle = spr.bg;
-            ctx.fillRect(spr.x, spr.y, spr.w, spr.h);
-            ctx.strokeStyle = spr.fg;
-            ctx.strokeRect(spr.x + .5, spr.y + .5, spr.w - 1, spr.h - 1);
-            ctx.fillStyle = spr.fg;
-            ctx.font = 'bold 26px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(spr.msg, spr.x + spr.w / 2, spr.y + spr.h / 2);
+        if (Math.random() > 0.5) {
+            drawInfo.yScale *= -1;
+        } else {
+            drawInfo.offY = 1 - drawInfo.offY;
+            drawInfo.height *= -1;
         }
-        document.body.appendChild(ctx.canvas);
+        drawInfos.push(drawInfo);
+    }
 
-        // copy the atlas to a texture
-        const tex = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ctx.canvas);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-        function get_shader(gl, shaderSource, shaderType) {
-            var shader = gl.createShader(shaderType);
-            gl.shaderSource(shader, shaderSource);
-            gl.compileShader(shader);
-            return shader;
+    function update(deltaTime) {
+      drawInfos.forEach((drawInfo) => {
+        drawInfo.x += drawInfo.dx * speed * deltaTime;
+        drawInfo.y += drawInfo.dy * speed * deltaTime;
+        if (drawInfo.x < 0) {
+          drawInfo.dx = 1;
         }
-
-        function render(time) {
-            time *= 0.001;  // convert to seconds
-            spriteNdx = 0;
-            const numSprites = 10;
-            for (let i = 0; i < numSprites; ++i) {
-                const sp = sprites[i % sprites.length];
-                addSprite(
-                    spriteAtlasWidth, spriteAtlasHeight,
-                    sp.x, sp.y, sp.w, sp.h,
-                    Math.sin(time + i * 15) * gl.canvas.width / 2 + gl.canvas.width / 2,
-                    Math.cos(time + i * 17) * gl.canvas.height / 2 + gl.canvas.height / 2,
-                    sp.w, sp.h,
-                );
-            }
-            // copy the latest sprite instance data to their respective buffers and setup the attributes.
-            // NOTE: for the attributes it would be better// to use a vertex array
-            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-            gl.enableVertexAttribArray(positionLoc);
-            gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
-            gl.enableVertexAttribArray(uvLoc);
-            gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, offsets);
-            gl.enableVertexAttribArray(offsetLoc);
-            gl.vertexAttribPointer(offsetLoc, 2, gl.FLOAT, false, 0, 0);
-            ext.vertexAttribDivisorANGLE(offsetLoc, 1);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, scaleBuffer);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, scales);
-            gl.enableVertexAttribArray(scaleLoc);
-            gl.vertexAttribPointer(scaleLoc, 2, gl.FLOAT, false, 0, 0);
-            ext.vertexAttribDivisorANGLE(scaleLoc, 1);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, uvOffsetBuffer);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, uvOffsets);
-            gl.enableVertexAttribArray(uvOffsetLoc);
-            gl.vertexAttribPointer(uvOffsetLoc, 2, gl.FLOAT, false, 0, 0);
-            ext.vertexAttribDivisorANGLE(uvOffsetLoc, 1);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, uvScaleBuffer);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, uvScales);
-            gl.enableVertexAttribArray(uvScaleLoc);
-            gl.vertexAttribPointer(uvScaleLoc, 2, gl.FLOAT, false, 0, 0);
-            ext.vertexAttribDivisorANGLE(uvScaleLoc, 1);
-
-            gl.useProgram(program);
-
-            // pass in a projection matrix that converts to pixel space so the top left corner is 0,0 and the bottom right corner
-            // is canvas.width, canvas.height
-            // if you had a 3d math library this would be something like
-            gl.uniformMatrix4fv(matrixLoc, false, [
-                2 / gl.canvas.width, 0, 0, 0,
-                0, -2 / gl.canvas.height, 0, 0,
-                0, 0, 1, 0,
-                -1, 1, 0, 1,
-            ]);
-            // note as there as only 1 texture and uniforms default to 0 we don't need to bind the texture to setup a uniform as the defaults happen to work.
-            ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6, /* verts per instance */ spriteNdx,  /* num instances */);
-            requestAnimationFrame(render);
+        if (drawInfo.x >= gl.canvas.width) {
+          drawInfo.dx = -1;
         }
-        requestAnimationFrame(render);
+        if (drawInfo.y < 0) {
+          drawInfo.dy = 1;
+        }
+        if (drawInfo.y >= gl.canvas.height) {
+          drawInfo.dy = -1;
+        }
+      });
+    }
 
-    </script>
+    function draw() {
+      gl.canvas.width  = canvas_width;
+      gl.canvas.height = canvas_height;
+      // Tell WebGL how to convert from clip space to pixels
+      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      drawInfos.forEach((drawInfo, i, arr) => {
+        // координаты текстуры допустим с нуля
+        // var dstX      = 0;
+        // var dstY      = 0;
+        var dstX      = drawInfo.x;
+        var dstY      = drawInfo.y;
+        // --------------------------------------------------------------------
+        // ширина и высота того что рисуется, типа уменьшить или увеличить
+        var dstWidth  = 200;
+        var dstHeight = 200;
+        // var dstWidth  = drawInfo.textureInfo.width  * drawInfo.xScale;
+        // var dstHeight = drawInfo.textureInfo.height * drawInfo.yScale;
+        // --------------------------------------------------------------------
+        // тут реальные координаты того что пытаемся найти  типа круг там то и там то находится
+        var srcX      = 430;
+        var srcY      = 440;
+        // var srcX      = drawInfo.textureInfo.width  * drawInfo.offX;
+        // var srcY      = drawInfo.textureInfo.height * drawInfo.offY;
+        // --------------------------------------------------------------------
+        // чем меньше тем больший маштаб берется - маштаб того куска что берем на самом деле, типа как маска чтоли
+        var srcWidth  = 205;
+        var srcHeight = 205;
+        // var srcWidth  = drawInfo.textureInfo.width  * drawInfo.width;
+        // var srcHeight = drawInfo.textureInfo.height * drawInfo.height;
+        drawImage(drawInfo.textureInfo.texture, drawInfo.textureInfo.width, drawInfo.textureInfo.height, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight);
+      });
+    }
+    var then = 0;
+    function render(time) {
+      var now = time * 0.001;
+      var deltaTime = Math.min(0.1, now - then);
+      then = now;
+      update(deltaTime);
+      draw();
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+
+    // Unlike images, textures do not have a width and height associated with them so we'll pass in the width and height of the texture
+    function drawImage(tex, texWidth, texHeight, srcX, srcY, srcWidth, srcHeight, dstX, dstY, dstWidth, dstHeight) {
+      if (dstX === undefined)        {dstX = srcX;srcX = 0;}
+      if (dstY === undefined)        {dstY = srcY;srcY = 0;}
+      if (srcWidth === undefined)    {srcWidth = texWidth;}
+      if (srcHeight === undefined)   {srcHeight = texHeight;}
+      if (dstWidth === undefined)    {dstWidth = srcWidth;srcWidth = texWidth;}
+      if (dstHeight === undefined)   {dstHeight = srcHeight;srcHeight = texHeight;}
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      // Tell WebGL to use our shader program pair
+      gl.useProgram(program);
+      // Setup the attributes to pull data from our buffers
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+      gl.enableVertexAttribArray(texcoordLocation);
+      gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+      // this matrix will convert from pixels to clip space
+      var matrix = orthographic(0, gl.canvas.width, gl.canvas.height, 0, -1, 1);
+      // this matrix will translate our quad to dstX, dstY
+      matrix = translate(matrix, dstX, dstY, 0);
+      // this matrix will scale our 1 unit quad from 1 unit to texWidth, texHeight units
+      matrix = scale(matrix, dstWidth, dstHeight, 1);
+      // Set the matrix.
+      gl.uniformMatrix4fv(matrixLocation, false, matrix);
+      // Because texture coordinates go from 0 to 1 and because our texture coordinates are already a unit quad we can select an area of the texture by scaling the unit quad down
+      var texMatrix = translation(srcX / texWidth, srcY / texHeight, 0);
+      texMatrix = scale(texMatrix, srcWidth / texWidth, srcHeight / texHeight, 1);
+      // Set the texture matrix.
+      gl.uniformMatrix4fv(textureMatrixLocation, false, texMatrix);
+      // Tell the shader to get the texture from texture unit 0
+      gl.uniform1i(textureLocation, 0);
+      // draw the quad (2 triangles, 6 vertices)
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+  }
+  main();
+
+  function orthographic(left, right, bottom, top, near, far, dst) {
+    dst = dst || new Float32Array(16);
+    dst[ 0] = 2 / (right - left);
+    dst[ 1] = 0;
+    dst[ 2] = 0;
+    dst[ 3] = 0;
+    dst[ 4] = 0;
+    dst[ 5] = 2 / (top - bottom);
+    dst[ 6] = 0;
+    dst[ 7] = 0;
+    dst[ 8] = 0;
+    dst[ 9] = 0;
+    dst[10] = 2 / (near - far);
+    dst[11] = 0;
+    dst[12] = (left + right) / (left - right);
+    dst[13] = (bottom + top) / (bottom - top);
+    dst[14] = (near + far) / (near - far);
+    dst[15] = 1;
+    return dst;
+  }
+  function translation(tx, ty, tz, dst) {
+    dst = dst || new Float32Array(16);
+    dst[ 0] = 1;
+    dst[ 1] = 0;
+    dst[ 2] = 0;
+    dst[ 3] = 0;
+    dst[ 4] = 0;
+    dst[ 5] = 1;
+    dst[ 6] = 0;
+    dst[ 7] = 0;
+    dst[ 8] = 0;
+    dst[ 9] = 0;
+    dst[10] = 1;
+    dst[11] = 0;
+    dst[12] = tx;
+    dst[13] = ty;
+    dst[14] = tz;
+    dst[15] = 1;
+    return dst;
+  }
+  function translate(m, tx, ty, tz, dst) {
+    // This is the optimized version of return multiply(m, translation(tx, ty, tz), dst);
+    dst = dst || new Float32Array(16);
+    var m00 = m[0];
+    var m01 = m[1];
+    var m02 = m[2];
+    var m03 = m[3];
+    var m10 = m[1 * 4 + 0];
+    var m11 = m[1 * 4 + 1];
+    var m12 = m[1 * 4 + 2];
+    var m13 = m[1 * 4 + 3];
+    var m20 = m[2 * 4 + 0];
+    var m21 = m[2 * 4 + 1];
+    var m22 = m[2 * 4 + 2];
+    var m23 = m[2 * 4 + 3];
+    var m30 = m[3 * 4 + 0];
+    var m31 = m[3 * 4 + 1];
+    var m32 = m[3 * 4 + 2];
+    var m33 = m[3 * 4 + 3];
+    if (m !== dst) {
+      dst[ 0] = m00;
+      dst[ 1] = m01;
+      dst[ 2] = m02;
+      dst[ 3] = m03;
+      dst[ 4] = m10;
+      dst[ 5] = m11;
+      dst[ 6] = m12;
+      dst[ 7] = m13;
+      dst[ 8] = m20;
+      dst[ 9] = m21;
+      dst[10] = m22;
+      dst[11] = m23;
+    }
+    dst[12] = m00 * tx + m10 * ty + m20 * tz + m30;
+    dst[13] = m01 * tx + m11 * ty + m21 * tz + m31;
+    dst[14] = m02 * tx + m12 * ty + m22 * tz + m32;
+    dst[15] = m03 * tx + m13 * ty + m23 * tz + m33;
+    return dst;
+  }
+  function scale(m, sx, sy, sz, dst) {
+    // This is the optimized version of return multiply(m, scaling(sx, sy, sz), dst);
+    dst = dst || new Float32Array(16);
+    dst[ 0] = sx * m[0 * 4 + 0];
+    dst[ 1] = sx * m[0 * 4 + 1];
+    dst[ 2] = sx * m[0 * 4 + 2];
+    dst[ 3] = sx * m[0 * 4 + 3];
+    dst[ 4] = sy * m[1 * 4 + 0];
+    dst[ 5] = sy * m[1 * 4 + 1];
+    dst[ 6] = sy * m[1 * 4 + 2];
+    dst[ 7] = sy * m[1 * 4 + 3];
+    dst[ 8] = sz * m[2 * 4 + 0];
+    dst[ 9] = sz * m[2 * 4 + 1];
+    dst[10] = sz * m[2 * 4 + 2];
+    dst[11] = sz * m[2 * 4 + 3];
+    if (m !== dst) {
+      dst[12] = m[12];
+      dst[13] = m[13];
+      dst[14] = m[14];
+      dst[15] = m[15];
+    }
+    return dst;
+  }
+
+</script>
 </body>
 </html>
