@@ -196,19 +196,19 @@ void main() {
       matrix = translate(matrix, dstX, dstY, 0);
       // this matrix will scale our 1 unit quad from 1 unit to texWidth, texHeight units
       matrix = scale(matrix, dstWidth, dstHeight, 1);
+      // Нам нужно выбрать точку, вокруг которой будет происходить вращение.
+      // Мы сместимся в центр, осуществим поворот и вернёмся обратно в начальную точку.
+      if(isRotation) {
+        matrix = translate(matrix, 0.5, 0.5, 0);
+        matrix = zRotate(matrix, srcRotation);
+        matrix = translate(matrix, -0.5, -0.5, 0);
+      }
       // устанавливаем текстурную матрицу
       gl.uniformMatrix4fv(matrixLocation, false, matrix);
       // -------------------------------------------------------------------
       // По аналогии с проекционной матрицей нам нужно переместиться из текстурного пространства (0..1). Эта матрица перенесёт нас в пиксельное пространство.
       var texMatrix = translation(srcX / texWidth, srcY / texHeight, 0);
       texMatrix = scale(texMatrix, srcWidth / texWidth, srcHeight / texHeight, 1);
-      // Нам нужно выбрать точку, вокруг которой будет происходить вращение.
-      // Мы сместимся в центр, осуществим поворот и вернёмся обратно в начальную точку.
-      if(isRotation) {
-        texMatrix = translate(texMatrix, 0.5, 0.5, 0);
-        texMatrix = zRotate(texMatrix, srcRotation);
-        texMatrix = translate(texMatrix, -0.5, -0.5, 0);
-      }
       // так как мы находимся в пиксельном пространстве, масштабирование и перенос выполняется в пикселях
       gl.uniformMatrix4fv(textureMatrixLocation, false, texMatrix);
       // -------------------------------------------------------------------
